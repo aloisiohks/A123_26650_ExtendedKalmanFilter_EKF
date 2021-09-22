@@ -1,0 +1,142 @@
+
+clear; close all;
+% tic
+
+load('A123CETmodel.mat');
+
+% Lab results
+% load('A002_FC_CCCV_4C.mat');   % Load lab data
+% load('A002_FC_1C_DIS_CHG_2.mat');   % Load lab data
+% 
+load('A002_TH_UDDS_090');
+
+time = Data.time'; 
+voltage = Data.voltage'; 
+current = Data.current'; 
+Ts = Data.Ts' + 273.15; 
+Tf = Data.Tf' + 273.15; 
+
+tinit = 1; 
+t1 = time(tinit);  t2 = time(end);
+deltaT = time(tinit+1) - time(tinit);
+t = (t1:deltaT:t2) - t1;
+
+K = 273.15;
+
+current = interp1(time,current,t1:deltaT:t2);
+voltage = interp1(time,voltage,t1:deltaT:t2);
+Ts = interp1(time,Ts,t1:deltaT:t2);
+Tf = interp1(time,Tf,t1:deltaT:t2);
+
+
+% Initialize EKF
+SOC0 =  0.9; 
+T0 = 25 + 273.15;
+
+SigmaX0 = diag([1e-3  1e-8 1e-7 1e-6 1e-4 ]);
+SigmaV = diag([1e-3 1e-4]);
+SigmaW = diag([2e-7 1.6576e-5 ]);
+
+ir0 = 0;
+hk0 = 0; 
+Tc0 = T0; 
+Ts0 = T0; 
+xhat = [SOC0 ir0 hk0 Tc0 Ts0]';
+[linMatrices,xekf,ekfData] = initEKF(xhat,SigmaX0,SigmaV,SigmaW,model,deltaT);
+
+
+% Allocate memory for data storage
+N = length(t);
+SOC_store = zeros(N,1);
+SOC_bounds = zeros(N,1);
+vhat_store = zeros(N,1);
+voltage_bounds = zeros(N,1);
+Tc_store = zeros(N,1);
+Ts_store = zeros(N,1);
+zkbounds = zeros(N,1);
+theta_store = zeros(N,1);
+Tcbounds = zeros(N,1);
+thetabounds = zeros(N,1);
+% Iterate for N seconds
+for k = 1:N
+        
+    % EKF
+    [varEkf, xekf, ekfData, vhat] = iterEKF(voltage(k),Ts(k),current(k),Tf(k),xekf,model,ekfData);
+    
+
+    SOC_store(k) = xekf(1);
+    Tc_store(k) = xekf(4);
+    Ts_store(k) = xekf(5);
+    vhat_store(k) = vhat;
+    
+    
+    zkbounds(k) = ekfData.soc_bounds;
+    Tcbounds(k) = ekfData.Tc_bounds;
+    
+    
+    if(mod(k,100) == 0)
+        fprintf('\b\b\b\b\b\b\b\b\b\b\b\b\b\bProgress: %2d%%\n',round(100*k/N));
+    end
+end
+
+% toc
+
+% RMS_vk = sqrt(mean((voltage' - vhat_store ).^2))*10^-3  % Root Mean Squared Error
+% RMS_Ts = sqrt(mean((Ts' - Ts_store).^2))*10^-3  % Root Mean Squared Error
+
+
+figure();
+plot(t,current,'linewidth',1.1);
+title('Input Current - UDDS');
+grid on;
+xlim([t(1),t(end)]); ylabel('Current (A)'); xlabel('Time (s)');
+set(gcf,'color','w');
+plotFormat;
+
+
+figure();
+plot(t,voltage,'linewidth',1.1);grid on;
+% plot(t/3600,vhat_store,'b','linewidth',1.1);grid on; title(sprintf('Voltage Estimation \n RMS Error = %d',RMS_vk));
+xlim([t(1),t(end)]); ylabel('Voltage (V)'); xlabel('Time ()');
+set(gcf,'color','w');
+
+
+
+
+figure();
+plot(t,Tc_store-K','linewidth',1.1);hold on;
+plot(t,Tc_store+Tcbounds - K,'--r','linewidth',1.1);hold on;
+plot(t,Tc_store-Tcbounds - K,'--r','linewidth',1.1);grid on;
+legend('Core Temp. - EKF','Error Bounds','location','northwest');
+xlim([t(1),t(end)]);
+ylabel ('Temperature [{\circ}C]');
+xlabel ('Time [sec]');title('Core Temperature Estimate')
+set(gcf,'color','w');
+% export_fig figures/Temp_EKF.png -dpng -r300 -a1 -m2
+
+figure();
+plot(t,100*SOC_store,'linewidth',1.1);
+hold on;grid on;
+plot(t,100*(SOC_store+zkbounds),'--r','linewidth',1.1);hold on;
+plot(t,100*(SOC_store-zkbounds),'--r','linewidth',1.1);
+legend('SOC - EKF','Error Bounds');
+xlim([t(1),t(end)]);
+ylim([0,100]);
+xlabel ('Time [sec]');
+ylabel ('State of charge [%]');
+title('State of Charge estimation');
+set(gcf,'color','w');
+
+
+ 
+ ax2 = axes('Position',[0.7 0.7 0.2 0.2]);
+ time2 = t(3820:3950);
+box on
+plot(time2,100*SOC_store(3820:3950),'linewidth',1.1);
+hold on;grid on;
+plot(time2,100*(SOC_store(3820:3950)+zkbounds(3820:3950)),'--r','linewidth',1.1);hold on;
+plot(time2,100*(SOC_store(3820:3950)-zkbounds(3820:3950)),'--r','linewidth',1.1);
+
+
+
+
