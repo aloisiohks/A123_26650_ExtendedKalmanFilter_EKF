@@ -1,6 +1,6 @@
 # SOC and Temperature Estimation Using Extended Kalman Filter and a Coupled Electro-Thermal Model (A12326650)
 
-If you use this software in your work please cite the thesis below or reference using the following DOI <a href="https://zenodo.org/badge/latestdoi/409257239"><img src="https://zenodo.org/badge/409257239.svg" alt="DOI"></a>
+If you use this software in your work please cite the thesis below or reference this repository using the following DOI  <a href="https://zenodo.org/badge/latestdoi/409257239"><img src="https://zenodo.org/badge/409257239.svg" alt="DOI"></a>
 
 This repository contains the extended Kalman filter (SPKF) algorithm for state of charge and temperature estimation for the A123 26650 m1b cell developed and used in the following publications
 
